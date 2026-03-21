@@ -17,6 +17,8 @@ from dotenv import load_dotenv
 load_dotenv()
 FORGEJO_BASE_URL = os.getenv("BASE_URL")
 FORGEJO_TOKEN = os.getenv("TOKEN")
+LOGIN_ALLOWED_USERNAME = os.getenv("LOGIN_USERNAME", "ken")
+LOGIN_ALLOWED_PASSWORD = os.getenv("LOGIN_PASSWORD", "081010")
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -30,7 +32,11 @@ SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-dev-only-change-me")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "False").lower() in ("1", "true", "yes", "on")
 
-ALLOWED_HOSTS = ["forgejo-timetracker.onrender.com"]
+ALLOWED_HOSTS = [
+    "forgejo-timetracker.onrender.com",
+    "127.0.0.1",
+    "localhost",
+]
 ALLOWED_HOSTS += [host.strip() for host in os.getenv("ALLOWED_HOSTS", "").split(",") if host.strip()]
 
 
@@ -123,3 +129,10 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+LOGIN_URL = "/login/"
+LOGIN_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "/login/"
+SESSION_ENGINE = "forgejo_tracker.session_backend"
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = True

@@ -18,11 +18,12 @@ Including another URLconf
 
 from django.contrib import admin
 from django.urls import path, include
-from tracker.views import index   # 👈 add this
+from tracker.views import index, login_view, logout_view
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("login/", login_view, name="login"),
+    path("logout/", logout_view, name="logout"),
     path("api/", include("tracker.urls")),
-    path("", index),  # 👈 THIS FIXES IT
+    path("", index, name="index"),
 ]
-

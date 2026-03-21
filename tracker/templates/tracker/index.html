@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         *, *::before, *::after {
             box-sizing: border-box;
@@ -17,7 +18,7 @@
 
         :root {
             --stone-950: #0c0b0a;
-          
+            --stone-900: #171512;
             --stone-800: #2a2620;
             --stone-700: #3d3830;
             --stone-400: #a39e95;
@@ -38,11 +39,10 @@
             font-family: 'DM Mono', monospace;
             background-color: var(--stone-950);
             color: var(--stone-300);
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            display: block;
             min-height: 100vh;
-            padding: 24px;
+            padding: 32px 24px 48px;
+            overflow-y: auto;
             /* Subtle grain texture */
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
         }
@@ -50,6 +50,7 @@
         .shell {
             width: 100%;
             max-width: 440px;
+            margin: 0 auto;
             animation: fadeUp 0.6s cubic-bezier(0.4, 0, 0.2, 1) both;
         }
 
@@ -64,6 +65,30 @@
             align-items: center;
             gap: 14px;
             margin-bottom: 40px;
+        }
+
+        .header-meta {
+            margin-left: auto;
+        }
+
+        .logout-btn {
+            border: 1px solid var(--stone-700);
+            border-radius: var(--radius-sm);
+            background: transparent;
+            color: var(--stone-300);
+            font-family: 'DM Mono', monospace;
+            font-size: 0.62rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            padding: 7px 10px;
+            cursor: pointer;
+            transition: border-color var(--transition), color var(--transition), background var(--transition);
+        }
+
+        .logout-btn:hover {
+            border-color: var(--gold-dim);
+            color: var(--stone-100);
+            background: rgba(201, 169, 110, 0.04);
         }
 
         .header-icon {
@@ -172,6 +197,13 @@
             border-color: var(--stone-400);
         }
 
+        .goal-help {
+            margin-top: 7px;
+            color: var(--stone-400);
+            font-size: 0.62rem;
+            letter-spacing: 0.06em;
+        }
+
         /* ── Button ──────────────────────────────────────── */
         .btn {
             display: flex;
@@ -221,6 +253,45 @@
             opacity: 0.4;
             cursor: not-allowed;
             transform: none;
+        }
+
+        .btn-secondary {
+            margin-top: 12px;
+            border-color: var(--stone-700);
+            color: var(--stone-300);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--gold-dim);
+            color: var(--stone-100);
+            background: rgba(201, 169, 110, 0.04);
+            box-shadow: none;
+        }
+
+        .quick-ranges {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 16px;
+        }
+
+        .quick-range-btn {
+            border: 1px solid var(--stone-700);
+            background: var(--stone-800);
+            color: var(--stone-300);
+            border-radius: var(--radius-sm);
+            font-family: 'DM Mono', monospace;
+            font-size: 0.64rem;
+            letter-spacing: 0.09em;
+            text-transform: uppercase;
+            padding: 8px 10px;
+            cursor: pointer;
+            transition: border-color var(--transition), color var(--transition), background var(--transition);
+        }
+
+        .quick-range-btn:hover {
+            border-color: var(--gold-dim);
+            color: var(--stone-100);
         }
 
         /* ── Result ──────────────────────────────────────── */
@@ -283,6 +354,201 @@
             font-size: 0.68rem;
             color: var(--stone-400);
             letter-spacing: 0.06em;
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 14px;
+        }
+
+        .stat-card {
+            border: 1px solid var(--stone-800);
+            border-radius: var(--radius-sm);
+            padding: 10px 11px;
+            background: rgba(255, 255, 255, 0.01);
+        }
+
+        .stat-label {
+            display: block;
+            font-size: 0.56rem;
+            letter-spacing: 0.09em;
+            text-transform: uppercase;
+            color: var(--stone-400);
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            color: var(--stone-100);
+            font-size: 0.76rem;
+            letter-spacing: 0.04em;
+            line-height: 1.2;
+        }
+
+        .comparison-card {
+            margin-top: 12px;
+            border: 1px solid var(--stone-800);
+            border-radius: var(--radius-sm);
+            padding: 11px;
+            background: rgba(255, 255, 255, 0.01);
+        }
+
+        .comparison-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: baseline;
+        }
+
+        .comparison-label {
+            font-size: 0.58rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--stone-400);
+        }
+
+        .comparison-value {
+            font-size: 0.84rem;
+            color: var(--stone-100);
+            letter-spacing: 0.04em;
+        }
+
+        .comparison-value.up {
+            color: #86d39b;
+        }
+
+        .comparison-value.down {
+            color: #e39b9b;
+        }
+
+        .comparison-sub {
+            margin-top: 6px;
+            font-size: 0.64rem;
+            color: var(--stone-400);
+            letter-spacing: 0.05em;
+        }
+
+        .insight-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .insight-card {
+            border: 1px solid var(--stone-800);
+            border-radius: var(--radius-sm);
+            padding: 10px 11px;
+            background: rgba(255, 255, 255, 0.01);
+        }
+
+        .insight-title {
+            font-size: 0.56rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--stone-400);
+        }
+
+        .insight-value {
+            margin-top: 6px;
+            color: var(--stone-100);
+            font-size: 0.8rem;
+            letter-spacing: 0.04em;
+            line-height: 1.2;
+        }
+
+        .goal-progress {
+            margin-top: 12px;
+            border: 1px solid var(--stone-800);
+            border-radius: var(--radius-sm);
+            padding: 11px;
+            background: rgba(255, 255, 255, 0.01);
+        }
+
+        .goal-track {
+            margin-top: 8px;
+            height: 8px;
+            background: var(--stone-800);
+            border-radius: 999px;
+            overflow: hidden;
+        }
+
+        .goal-bar {
+            height: 100%;
+            width: 0;
+            background: linear-gradient(90deg, #2f8fbf, #66c28f);
+            transition: width var(--transition);
+        }
+
+        .top-days {
+            margin-top: 12px;
+            border: 1px solid var(--stone-800);
+            border-radius: var(--radius-sm);
+            padding: 10px 11px;
+            background: rgba(255, 255, 255, 0.01);
+        }
+
+        .top-days-title {
+            font-size: 0.56rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--stone-400);
+            margin-bottom: 6px;
+        }
+
+        .top-days-list {
+            margin: 0;
+            padding-left: 16px;
+            color: var(--stone-100);
+            font-size: 0.74rem;
+            line-height: 1.5;
+        }
+
+        .daily-chart-wrap {
+            margin-top: 16px;
+            border: 1px solid var(--stone-800);
+            border-radius: var(--radius-sm);
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.01);
+        }
+
+        .daily-chart-title {
+            font-size: 0.58rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--stone-400);
+            margin-bottom: 10px;
+        }
+
+        .daily-chart {
+            display: grid;
+            grid-auto-flow: column;
+            grid-auto-columns: minmax(10px, 1fr);
+            align-items: end;
+            height: 118px;
+            gap: 6px;
+            overflow-x: auto;
+            padding-bottom: 6px;
+            scrollbar-width: thin;
+            scrollbar-color: var(--stone-700) transparent;
+        }
+
+        .daily-chart::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .daily-chart::-webkit-scrollbar-thumb {
+            background: var(--stone-700);
+            border-radius: 999px;
+        }
+
+        .chart-bar {
+            width: 100%;
+            min-width: 10px;
+            border-radius: 3px 3px 2px 2px;
+            background: linear-gradient(180deg, var(--gold), #1f5f8a);
+            opacity: 0.92;
         }
 
         .daily-breakdown {
@@ -385,6 +651,14 @@
             .result-value {
                 font-size: 2.5rem;
             }
+
+            .stats-row {
+                grid-template-columns: 1fr;
+            }
+
+            .insight-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -398,6 +672,12 @@
         <div class="header-text">
             <div class="header-title">Time Tracker</div>
             <div class="header-subtitle">Forgejo · Time Summary</div>
+        </div>
+        <div class="header-meta">
+            <form method="post" action="/logout/">
+                {% csrf_token %}
+                <button class="logout-btn" type="submit">Log out</button>
+            </form>
         </div>
     </div>
 
@@ -418,10 +698,25 @@
             <input class="field-input" type="date" id="before">
         </div>
 
+        <div class="field">
+            <label class="field-label" for="goalHours">
+                <i data-lucide="target"></i>
+                Goal (hours)
+            </label>
+            <input class="field-input" type="number" id="goalHours" min="0" step="0.5" placeholder="e.g. 40">
+            <div class="goal-help">Used for progress tracking in this range. Saved in your browser.</div>
+        </div>
+
         <button class="btn" onclick="fetchTime()" id="calcBtn">
             <i data-lucide="clock-4"></i>
             Calculate
         </button>
+        <div class="quick-ranges">
+            <button class="quick-range-btn" type="button" onclick="setPresetRange(7)">Last 7 days</button>
+            <button class="quick-range-btn" type="button" onclick="setPresetRange(30)">Last 30 days</button>
+            <button class="quick-range-btn" type="button" onclick="setCurrentMonth()">This month</button>
+            <button class="quick-range-btn" type="button" onclick="setThisWeek()">This week</button>
+        </div>
 
         <div class="error-msg" id="errorMsg">
             <i data-lucide="alert-circle"></i>
@@ -437,6 +732,62 @@
                 —
             </div>
             <div class="result-meta" id="resultMeta"></div>
+            <div class="stats-row">
+                <div class="stat-card">
+                    <span class="stat-label">Avg / day</span>
+                    <span class="stat-value" id="avgPerDay">-</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Busiest day</span>
+                    <span class="stat-value" id="busiestDay">-</span>
+                </div>
+            </div>
+            <div class="comparison-card">
+                <div class="comparison-head">
+                    <span class="comparison-label">Vs previous period</span>
+                    <span class="comparison-value" id="comparisonValue">-</span>
+                </div>
+                <div class="comparison-sub" id="comparisonSub">No comparison available.</div>
+            </div>
+            <div class="insight-grid">
+                <div class="insight-card">
+                    <div class="insight-title">Active days</div>
+                    <div class="insight-value" id="activeDays">-</div>
+                </div>
+                <div class="insight-card">
+                    <div class="insight-title">Streak</div>
+                    <div class="insight-value" id="streaks">-</div>
+                </div>
+                <div class="insight-card">
+                    <div class="insight-title">Weekday / Weekend</div>
+                    <div class="insight-value" id="weekdayWeekend">-</div>
+                </div>
+                <div class="insight-card">
+                    <div class="insight-title">Consistency</div>
+                    <div class="insight-value" id="consistency">-</div>
+                </div>
+            </div>
+            <div class="goal-progress">
+                <div class="comparison-head">
+                    <span class="comparison-label">Goal progress</span>
+                    <span class="comparison-value" id="goalProgressText">Set a goal</span>
+                </div>
+                <div class="goal-track">
+                    <div class="goal-bar" id="goalProgressBar"></div>
+                </div>
+            </div>
+            <div class="daily-chart-wrap">
+                <div class="daily-chart-title">Hours worked each day</div>
+                <div class="daily-chart" id="dailyChart"></div>
+            </div>
+            <div class="top-days">
+                <div class="top-days-title">Top days</div>
+                <ol class="top-days-list" id="topDaysList"></ol>
+            </div>
+            <button class="btn btn-secondary" type="button" id="exportBtn" onclick="exportExcel()" disabled>
+                <i data-lucide="file-spreadsheet"></i>
+                Export Excel
+            </button>
             <div class="daily-breakdown" id="dailyBreakdown"></div>
         </div>
     </div>
@@ -447,6 +798,10 @@
 <script>
     // Init Lucide icons
     lucide.createIcons();
+    let latestSummaryData = null;
+    let latestSince = null;
+    let latestBefore = null;
+    const goalStorageKey = "forgejo-time-goal-hours";
 
     function toISO(dateStr, end = false) {
         if (!dateStr) return null;
@@ -470,6 +825,165 @@
         return `${hours}h ${minutes}m`;
     }
 
+    function formatDayLabel(dateStr) {
+        return new Date(`${dateStr}T00:00:00Z`).toLocaleDateString('en-GB', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+        });
+    }
+
+    function toInputDate(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+    }
+
+    function setThisWeek() {
+        const today = new Date();
+        const day = today.getDay();
+        const deltaToMonday = day === 0 ? 6 : day - 1;
+        const from = new Date(today);
+        from.setDate(today.getDate() - deltaToMonday);
+        document.getElementById("since").value = toInputDate(from);
+        document.getElementById("before").value = toInputDate(today);
+    }
+
+    function setPresetRange(days) {
+        const today = new Date();
+        const since = new Date(today);
+        since.setDate(since.getDate() - (days - 1));
+
+        document.getElementById("since").value = toInputDate(since);
+        document.getElementById("before").value = toInputDate(today);
+    }
+
+    function setCurrentMonth() {
+        const today = new Date();
+        const from = new Date(today.getFullYear(), today.getMonth(), 1);
+        document.getElementById("since").value = toInputDate(from);
+        document.getElementById("before").value = toInputDate(today);
+    }
+
+    function renderDailyChart(rows) {
+        const chart = document.getElementById("dailyChart");
+        chart.innerHTML = "";
+
+        if (!rows || rows.length === 0) return;
+
+        const peak = Math.max(...rows.map((row) => row.total_seconds), 1);
+        rows.forEach((row) => {
+            const bar = document.createElement("div");
+            bar.className = "chart-bar";
+            bar.style.height = `${Math.max(4, (row.total_seconds / peak) * 100)}%`;
+            const valueLabel = formatDuration(row.hours, row.minutes);
+            bar.title = `${formatDayLabel(row.date)}: ${valueLabel}`;
+            chart.appendChild(bar);
+        });
+    }
+
+    function renderStats(data) {
+        const avgEl = document.getElementById("avgPerDay");
+        const busiestEl = document.getElementById("busiestDay");
+
+        avgEl.textContent = formatDuration(data.average_per_day_hours || 0, data.average_per_day_minutes || 0);
+        if (data.busiest_day) {
+            busiestEl.textContent = `${formatDayLabel(data.busiest_day.date)} (${formatDuration(data.busiest_day.hours, data.busiest_day.minutes)})`;
+        } else {
+            busiestEl.textContent = "No tracked time";
+        }
+    }
+
+    function formatSignedDuration(parts) {
+        const prefix = parts.sign < 0 ? "-" : "+";
+        return `${prefix}${parts.hours}h ${parts.minutes}m`;
+    }
+
+    function renderComparison(comparison) {
+        const valueEl = document.getElementById("comparisonValue");
+        const subEl = document.getElementById("comparisonSub");
+        valueEl.classList.remove("up", "down");
+
+        if (!comparison) {
+            valueEl.textContent = "Unavailable";
+            subEl.textContent = "Previous period data could not be loaded.";
+            return;
+        }
+
+        valueEl.textContent = formatSignedDuration(comparison.delta);
+        if (comparison.direction === "up") valueEl.classList.add("up");
+        if (comparison.direction === "down") valueEl.classList.add("down");
+        const percentPart = comparison.delta_percent === null ? "n/a" : `${comparison.delta_percent}%`;
+        subEl.textContent = `${formatDayLabel(comparison.previous_since)} - ${formatDayLabel(comparison.previous_before)} (${percentPart})`;
+    }
+
+    function renderInsights(data) {
+        const insights = data.insights || {};
+        document.getElementById("activeDays").textContent = `${insights.active_days || 0}/${data.days_count || 0} (${insights.activity_rate_percent || 0}%)`;
+        document.getElementById("streaks").textContent = `Current ${insights.current_streak_days || 0}d · Best ${insights.longest_streak_days || 0}d`;
+        const weekday = insights.weekday || { hours: 0, minutes: 0 };
+        const weekend = insights.weekend || { hours: 0, minutes: 0 };
+        document.getElementById("weekdayWeekend").textContent = `${formatDuration(weekday.hours, weekday.minutes)} / ${formatDuration(weekend.hours, weekend.minutes)}`;
+        document.getElementById("consistency").textContent = `Weekday share ${insights.weekday_share_percent || 0}%`;
+    }
+
+    function renderTopDays(topDays) {
+        const list = document.getElementById("topDaysList");
+        list.innerHTML = "";
+        if (!topDays || topDays.length === 0) {
+            const item = document.createElement("li");
+            item.textContent = "No tracked days in this range.";
+            list.appendChild(item);
+            return;
+        }
+        topDays.forEach((day) => {
+            const item = document.createElement("li");
+            item.textContent = `${formatDayLabel(day.date)} - ${formatDuration(day.hours, day.minutes)}`;
+            list.appendChild(item);
+        });
+    }
+
+    function parseGoalHours() {
+        const raw = document.getElementById("goalHours").value;
+        const value = Number(raw);
+        if (!Number.isFinite(value) || value <= 0) return null;
+        return value;
+    }
+
+    function renderGoalProgress(data) {
+        const goal = parseGoalHours();
+        const text = document.getElementById("goalProgressText");
+        const bar = document.getElementById("goalProgressBar");
+
+        if (!goal) {
+            text.textContent = "Set a goal to track progress";
+            bar.style.width = "0%";
+            return;
+        }
+
+        const totalHours = (data.total_seconds || 0) / 3600;
+        const progress = Math.min(100, (totalHours / goal) * 100);
+        text.textContent = `${totalHours.toFixed(1)} / ${goal.toFixed(1)} h (${progress.toFixed(1)}%)`;
+        bar.style.width = `${progress}%`;
+    }
+
+    function loadSavedGoal() {
+        const saved = localStorage.getItem(goalStorageKey);
+        if (saved) {
+            document.getElementById("goalHours").value = saved;
+        }
+    }
+
+    function persistGoal() {
+        const val = document.getElementById("goalHours").value.trim();
+        if (!val) {
+            localStorage.removeItem(goalStorageKey);
+            return;
+        }
+        localStorage.setItem(goalStorageKey, val);
+    }
+
     function renderDailyBreakdown(rows) {
         const container = document.getElementById("dailyBreakdown");
         container.innerHTML = "";
@@ -482,16 +996,46 @@
             return;
         }
 
-        const fmt = (d) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
         rows.forEach((day) => {
             const row = document.createElement("div");
             row.className = "daily-row";
             row.innerHTML = `
-                <span class="daily-date">${fmt(day.date)}</span>
+                <span class="daily-date">${formatDayLabel(day.date)}</span>
                 <span class="daily-time">${formatDuration(day.hours, day.minutes)}</span>
             `;
             container.appendChild(row);
         });
+    }
+
+    function exportExcel() {
+        if (!latestSummaryData || !latestSummaryData.daily_breakdown) {
+            showError("No data to export yet. Calculate first.");
+            return;
+        }
+
+        const rows = latestSummaryData.daily_breakdown.map((day) => ({
+            Date: formatDayLabel(day.date),
+            Hours: day.hours,
+            Minutes: day.minutes,
+            "Total (h:mm)": formatDuration(day.hours, day.minutes),
+            "Total Seconds": day.total_seconds,
+        }));
+
+        rows.push({
+            Date: "TOTAL",
+            Hours: latestSummaryData.hours || 0,
+            Minutes: latestSummaryData.minutes || 0,
+            "Total (h:mm)": formatDuration(latestSummaryData.hours || 0, latestSummaryData.minutes || 0),
+            "Total Seconds": latestSummaryData.total_seconds || 0,
+        });
+
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Time Summary");
+
+        const safeSince = (latestSince || "since").replaceAll("-", "");
+        const safeBefore = (latestBefore || "before").replaceAll("-", "");
+        XLSX.writeFile(wb, `time-summary-${safeSince}-${safeBefore}.xlsx`);
     }
 
     async function fetchTime() {
@@ -518,8 +1062,11 @@
         lucide.createIcons();
 
         try {
-            const res  = await fetch(`/api/time-summary/?since=${since}&before=${before}`);
-            if (!res.ok) throw new Error(`Server error ${res.status}`);
+            const res  = await fetch(`/api/time-summary/?since=${encodeURIComponent(since)}&before=${encodeURIComponent(before)}`);
+            if (!res.ok) {
+                const errBody = await res.json().catch(() => null);
+                throw new Error(errBody?.error || `Server error ${res.status}`);
+            }
             const data = await res.json();
 
             const resultEl = document.getElementById("result");
@@ -527,7 +1074,17 @@
             const metaEl   = document.getElementById("resultMeta");
 
             valEl.innerHTML = `${data.hours}<span>h</span> ${data.minutes}<span>m</span>`;
+            renderStats(data);
+            renderComparison(data.comparison);
+            renderInsights(data);
+            renderDailyChart(data.daily_breakdown || []);
             renderDailyBreakdown(data.daily_breakdown || []);
+            renderTopDays(data.top_days || []);
+            renderGoalProgress(data);
+            latestSummaryData = data;
+            latestSince = sinceVal;
+            latestBefore = beforeVal;
+            document.getElementById("exportBtn").disabled = false;
 
             // Format date range for meta
             const fmt = d => new Date(d).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
@@ -539,13 +1096,27 @@
             resultEl.classList.add("visible");
 
         } catch (err) {
-            showError("Unable to retrieve data. Please try again.");
+            showError(err.message || "Unable to retrieve data. Please try again.");
+            latestSummaryData = null;
+            latestSince = null;
+            latestBefore = null;
+            document.getElementById("exportBtn").disabled = true;
         } finally {
             btn.disabled = false;
             btn.innerHTML = '<i data-lucide="clock-4"></i> Calculate';
             lucide.createIcons();
         }
     }
+
+    document.getElementById("goalHours").addEventListener("input", () => {
+        persistGoal();
+        if (latestSummaryData) {
+            renderGoalProgress(latestSummaryData);
+        }
+    });
+
+    loadSavedGoal();
+    setPresetRange(7);
 </script>
 
 </body>

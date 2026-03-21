@@ -4,6 +4,10 @@ from datetime import datetime, timezone
 from django.conf import settings
 
 
+class TimeTrackingServiceError(Exception):
+    pass
+
+
 def _parse_entry_date(entry):
     # Forgejo/Gitea payloads may expose timestamp fields in different formats.
     if isinstance(entry.get("created_unix"), int):
@@ -23,7 +27,10 @@ def _parse_entry_date(entry):
 
 
 def get_time_sum(since, before):
-    url = f"{settings.FORGEJO_BASE_URL}/api/v1/user/times"
+    if not settings.FORGEJO_BASE_URL or not settings.FORGEJO_TOKEN:
+        raise TimeTrackingServiceError("Forgejo API credentials are not configured.")
+
+    url = f"{settings.FORGEJO_BASE_URL.rstrip('/')}/api/v1/user/times"
 
     headers = {
         "Authorization": f"token {settings.FORGEJO_TOKEN}"
@@ -37,17 +44,30 @@ def get_time_sum(since, before):
     total_seconds = 0
     daily_seconds = defaultdict(int)
     page = 1
+    max_pages = 1000
 
     while True:
+        if page > max_pages:
+            raise TimeTrackingServiceError("Forgejo API pagination exceeded safe limit.")
+
         params["page"] = page
-        res = requests.get(url, headers=headers, params=params)
-        data = res.json()
+        try:
+            res = requests.get(url, headers=headers, params=params, timeout=15)
+            res.raise_for_status()
+            data = res.json()
+        except (requests.RequestException, ValueError) as exc:
+            raise TimeTrackingServiceError("Failed to fetch time entries from Forgejo.") from exc
 
         if not data:
             break
+        if not isinstance(data, list):
+            raise TimeTrackingServiceError("Unexpected response format from Forgejo API.")
 
         for entry in data:
-            seconds = int(entry.get("time", 0))
+            try:
+                seconds = max(0, int(entry.get("time", 0)))
+            except (TypeError, ValueError):
+                seconds = 0
             total_seconds += seconds
 
             entry_date = _parse_entry_date(entry)
