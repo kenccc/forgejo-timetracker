@@ -285,6 +285,55 @@
             letter-spacing: 0.06em;
         }
 
+        .daily-breakdown {
+            margin-top: 18px;
+            border-top: 1px solid var(--stone-800);
+            padding-top: 14px;
+            max-height: 240px;
+            overflow-y: auto;
+            padding-right: 6px;
+            scrollbar-width: thin;
+            scrollbar-color: var(--stone-700) transparent;
+        }
+
+        .daily-breakdown::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .daily-breakdown::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .daily-breakdown::-webkit-scrollbar-thumb {
+            background: var(--stone-700);
+            border-radius: 999px;
+        }
+
+        .daily-breakdown::-webkit-scrollbar-thumb:hover {
+            background: var(--stone-400);
+        }
+
+        .daily-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 6px 0;
+            font-size: 0.74rem;
+            color: var(--stone-300);
+        }
+
+        .daily-date {
+            color: var(--stone-400);
+            letter-spacing: 0.04em;
+        }
+
+        .daily-time {
+            color: var(--stone-100);
+            letter-spacing: 0.04em;
+            white-space: nowrap;
+        }
+
         /* ── Error ───────────────────────────────────────── */
         .error-msg {
             display: none;
@@ -388,6 +437,7 @@
                 —
             </div>
             <div class="result-meta" id="resultMeta"></div>
+            <div class="daily-breakdown" id="dailyBreakdown"></div>
         </div>
     </div>
 
@@ -414,6 +464,34 @@
 
     function hideError() {
         document.getElementById("errorMsg").classList.remove("visible");
+    }
+
+    function formatDuration(hours, minutes) {
+        return `${hours}h ${minutes}m`;
+    }
+
+    function renderDailyBreakdown(rows) {
+        const container = document.getElementById("dailyBreakdown");
+        container.innerHTML = "";
+
+        if (!rows || rows.length === 0) {
+            const row = document.createElement("div");
+            row.className = "daily-row";
+            row.innerHTML = '<span class="daily-date">No tracked time in this range.</span>';
+            container.appendChild(row);
+            return;
+        }
+
+        const fmt = (d) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+        rows.forEach((day) => {
+            const row = document.createElement("div");
+            row.className = "daily-row";
+            row.innerHTML = `
+                <span class="daily-date">${fmt(day.date)}</span>
+                <span class="daily-time">${formatDuration(day.hours, day.minutes)}</span>
+            `;
+            container.appendChild(row);
+        });
     }
 
     async function fetchTime() {
@@ -449,6 +527,7 @@
             const metaEl   = document.getElementById("resultMeta");
 
             valEl.innerHTML = `${data.hours}<span>h</span> ${data.minutes}<span>m</span>`;
+            renderDailyBreakdown(data.daily_breakdown || []);
 
             // Format date range for meta
             const fmt = d => new Date(d).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });

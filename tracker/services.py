@@ -1,5 +1,26 @@
 import requests
+from collections import defaultdict
+from datetime import datetime, timezone
 from django.conf import settings
+
+
+def _parse_entry_date(entry):
+    # Forgejo/Gitea payloads may expose timestamp fields in different formats.
+    if isinstance(entry.get("created_unix"), int):
+        return datetime.fromtimestamp(entry["created_unix"], tz=timezone.utc).date()
+
+    for key in ("created", "date", "updated"):
+        value = entry.get(key)
+        if not value or not isinstance(value, str):
+            continue
+        normalized = value.replace("Z", "+00:00")
+        try:
+            return datetime.fromisoformat(normalized).date()
+        except ValueError:
+            continue
+
+    return None
+
 
 def get_time_sum(since, before):
     url = f"{settings.FORGEJO_BASE_URL}/api/v1/user/times"
@@ -14,6 +35,7 @@ def get_time_sum(since, before):
     }
 
     total_seconds = 0
+    daily_seconds = defaultdict(int)
     page = 1
 
     while True:
@@ -24,7 +46,14 @@ def get_time_sum(since, before):
         if not data:
             break
 
-        total_seconds += sum(entry["time"] for entry in data)
+        for entry in data:
+            seconds = int(entry.get("time", 0))
+            total_seconds += seconds
+
+            entry_date = _parse_entry_date(entry)
+            if entry_date is not None:
+                daily_seconds[entry_date.isoformat()] += seconds
+
         page += 1
 
-    return total_seconds
+    return total_seconds, dict(sorted(daily_seconds.items()))
