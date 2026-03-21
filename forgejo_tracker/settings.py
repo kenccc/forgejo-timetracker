@@ -17,8 +17,8 @@ from dotenv import load_dotenv
 load_dotenv()
 FORGEJO_BASE_URL = os.getenv("BASE_URL")
 FORGEJO_TOKEN = os.getenv("TOKEN")
-LOGIN_ALLOWED_USERNAME = os.getenv("LOGIN_USERNAME", "ken")
-LOGIN_ALLOWED_PASSWORD = os.getenv("LOGIN_PASSWORD", "081010")
+LOGIN_ALLOWED_USERNAME = os.getenv("LOGIN_USERNAME")
+LOGIN_ALLOWED_PASSWORD = os.getenv("LOGIN_PASSWORD")
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
