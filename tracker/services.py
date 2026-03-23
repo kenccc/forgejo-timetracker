@@ -2,16 +2,22 @@ import requests
 from collections import defaultdict
 from datetime import datetime, timezone
 from django.conf import settings
+from django.core.cache import cache
 
 
 class TimeTrackingServiceError(Exception):
     pass
 
+_HTTP_SESSION = requests.Session()
+
 
 def _parse_entry_date(entry):
     # Forgejo/Gitea payloads may expose timestamp fields in different formats.
-    if isinstance(entry.get("created_unix"), int):
-        return datetime.fromtimestamp(entry["created_unix"], tz=timezone.utc).date()
+    created_unix = entry.get("created_unix")
+    if isinstance(created_unix, str) and created_unix.isdigit():
+        created_unix = int(created_unix)
+    if isinstance(created_unix, int):
+        return datetime.fromtimestamp(created_unix, tz=timezone.utc).date()
 
     for key in ("created", "date", "updated"):
         value = entry.get(key)
@@ -41,6 +47,11 @@ def get_time_sum(since, before):
         "before": before
     }
 
+    cache_key = f"forgejo:time_sum:{since}:{before}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     total_seconds = 0
     daily_seconds = defaultdict(int)
     page = 1
@@ -52,7 +63,7 @@ def get_time_sum(since, before):
 
         params["page"] = page
         try:
-            res = requests.get(url, headers=headers, params=params, timeout=15)
+            res = _HTTP_SESSION.get(url, headers=headers, params=params, timeout=15)
             res.raise_for_status()
             data = res.json()
         except (requests.RequestException, ValueError) as exc:
@@ -76,4 +87,6 @@ def get_time_sum(since, before):
 
         page += 1
 
-    return total_seconds, dict(sorted(daily_seconds.items()))
+    result = (total_seconds, dict(sorted(daily_seconds.items())))
+    cache.set(cache_key, result, timeout=120)
+    return result

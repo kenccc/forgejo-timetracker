@@ -18,6 +18,10 @@ Including another URLconf
 
 from django.contrib import admin
 from django.urls import path, include
+from django.urls import re_path
+from django.contrib.staticfiles.views import serve as static_serve
+from django.views.static import serve as plain_static_serve
+from django.conf import settings
 from tracker.views import index, login_view, logout_view
 
 urlpatterns = [
@@ -25,5 +29,11 @@ urlpatterns = [
     path("login/", login_view, name="login"),
     path("logout/", logout_view, name="logout"),
     path("api/", include("tracker.urls")),
+    path(
+        "static/tracker/<path:path>",
+        plain_static_serve,
+        {"document_root": settings.BASE_DIR / "tracker" / "static" / "tracker"},
+    ),
     path("", index, name="index"),
+    re_path(r"^static/(?P<path>.*)$", static_serve, {"insecure": True}),
 ]

@@ -71,6 +71,7 @@ class TimeSummaryTests(TestCase):
         self.assertEqual(data["comparison"]["previous"]["total_seconds"], 7200)
         self.assertEqual(data["comparison"]["direction"], "up")
         self.assertEqual(len(data["top_days"]), 2)
+        self.assertEqual(len(data["weekly_breakdown"]), 2)
 
     def test_time_summary_rejects_invalid_range(self):
         response = self.client.get(
@@ -110,6 +111,33 @@ class TimeSummaryTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIsNone(response.json()["comparison"])
 
+    @patch("tracker.views.get_time_sum")
+    def test_time_summary_can_exclude_weekends(self, mock_get_time_sum):
+        mock_get_time_sum.side_effect = [
+            (
+                10800,
+                {
+                    "2026-03-06": 3600,  # Fri
+                    "2026-03-07": 3600,  # Sat
+                    "2026-03-08": 3600,  # Sun
+                },
+            ),
+            (0, {}),
+        ]
+        response = self.client.get(
+            "/api/time-summary/",
+            {
+                "since": "2026-03-06T00:00:00Z",
+                "before": "2026-03-08T23:59:59Z",
+                "include_weekends": "0",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["days_count"], 1)
+        self.assertEqual(data["total_seconds"], 3600)
+        self.assertFalse(data["include_weekends"])
+
 
 class ServiceTests(TestCase):
     def test_parse_entry_date_supports_multiple_formats(self):
@@ -127,7 +155,7 @@ class ServiceTests(TestCase):
         )
 
     @override_settings(FORGEJO_BASE_URL="https://forgejo.example", FORGEJO_TOKEN="abc")
-    @patch("tracker.services.requests.get")
+    @patch("tracker.services._HTTP_SESSION.get")
     def test_get_time_sum_fetches_all_pages(self, mock_get):
         mock_get.side_effect = [
             MockResponse(200, [{"time": 3600, "created": "2026-03-01T08:00:00Z"}]),
@@ -141,11 +169,11 @@ class ServiceTests(TestCase):
         self.assertEqual(mock_get.call_count, 3)
 
     @override_settings(FORGEJO_BASE_URL="https://forgejo.example", FORGEJO_TOKEN="abc")
-    @patch("tracker.services.requests.get")
+    @patch("tracker.services._HTTP_SESSION.get")
     def test_get_time_sum_raises_on_http_error(self, mock_get):
         mock_get.return_value = MockResponse(500, {"error": "boom"}, raise_http=True)
         with self.assertRaises(TimeTrackingServiceError):
-            get_time_sum("2026-03-01T00:00:00Z", "2026-03-02T23:59:59Z")
+            get_time_sum("2026-03-03T00:00:00Z", "2026-03-04T23:59:59Z")
 
 
 class MockResponse:

@@ -8,57 +8,14 @@ from django.views.decorators.http import require_http_methods, require_POST
 from datetime import date, timedelta
 
 from .services import TimeTrackingServiceError, get_time_sum
+from .analytics import (
+    build_daily_breakdown,
+    compute_summary_metrics,
+    compute_weekly_breakdown,
+    seconds_to_parts,
+)
 
 MAX_RANGE_DAYS = 366
-
-
-def _seconds_to_parts(total_seconds, allow_negative=False):
-    sign = -1 if total_seconds < 0 else 1
-    absolute_seconds = abs(total_seconds) if allow_negative else total_seconds
-    return {
-        "total_seconds": total_seconds,
-        "hours": absolute_seconds // 3600,
-        "minutes": (absolute_seconds % 3600) // 60,
-        "sign": sign if allow_negative else 1,
-    }
-
-
-def _build_daily_breakdown(since_date, before_date, daily_seconds):
-    daily_breakdown = []
-    current_day = since_date
-    while current_day <= before_date:
-        day = current_day.isoformat()
-        seconds = daily_seconds.get(day, 0)
-        daily_breakdown.append(
-            {
-                "date": day,
-                "total_seconds": seconds,
-                "hours": seconds // 3600,
-                "minutes": (seconds % 3600) // 60,
-            }
-        )
-        current_day += timedelta(days=1)
-    return daily_breakdown
-
-
-def _calculate_streaks(daily_breakdown):
-    longest = 0
-    current = 0
-    for row in daily_breakdown:
-        if row["total_seconds"] > 0:
-            current += 1
-            longest = max(longest, current)
-        else:
-            current = 0
-
-    current_streak = 0
-    for row in reversed(daily_breakdown):
-        if row["total_seconds"] > 0:
-            current_streak += 1
-        else:
-            break
-
-    return longest, current_streak
 
 
 def _get_previous_period_range(since_date, days_count):
@@ -143,47 +100,33 @@ def time_summary(request):
     if (before_date - since_date).days + 1 > MAX_RANGE_DAYS:
         return JsonResponse({"error": f"Date range must not exceed {MAX_RANGE_DAYS} days"}, status=400)
 
+    include_weekends = request.GET.get("include_weekends", "1").lower() not in ("0", "false", "no", "off")
+
     try:
         total_seconds, daily_seconds = get_time_sum(since, before)
     except TimeTrackingServiceError:
         return JsonResponse({"error": "Failed to load data from Forgejo"}, status=502)
-    daily_breakdown = _build_daily_breakdown(since_date, before_date, daily_seconds)
-
-    days_count = len(daily_breakdown)
-    average_per_day_seconds = int(total_seconds / days_count) if days_count else 0
-    busiest = max(daily_breakdown, key=lambda row: row["total_seconds"], default=None)
-    busiest_day = busiest if busiest and busiest["total_seconds"] > 0 else None
-    top_days = sorted(
-        [row for row in daily_breakdown if row["total_seconds"] > 0],
-        key=lambda row: row["total_seconds"],
-        reverse=True,
-    )[:3]
-    active_days = sum(1 for row in daily_breakdown if row["total_seconds"] > 0)
-    inactive_days = days_count - active_days
-    activity_rate_percent = round((active_days / days_count) * 100, 1) if days_count else 0
-    longest_streak_days, current_streak_days = _calculate_streaks(daily_breakdown)
-    weekday_seconds = 0
-    weekend_seconds = 0
-    for row in daily_breakdown:
-        if date.fromisoformat(row["date"]).weekday() < 5:
-            weekday_seconds += row["total_seconds"]
-        else:
-            weekend_seconds += row["total_seconds"]
-    weekday_share_percent = round((weekday_seconds / total_seconds) * 100, 1) if total_seconds else 0
-    weekend_share_percent = round((weekend_seconds / total_seconds) * 100, 1) if total_seconds else 0
+    daily_breakdown = build_daily_breakdown(
+        since_date,
+        before_date,
+        daily_seconds,
+        include_weekends=include_weekends,
+    )
+    metrics = compute_summary_metrics(daily_breakdown)
+    weekly_breakdown = compute_weekly_breakdown(daily_breakdown)
 
     comparison = None
-    if days_count > 0:
-        prev_since_date, prev_before_date = _get_previous_period_range(since_date, days_count)
+    if metrics.days_count > 0:
+        prev_since_date, prev_before_date = _get_previous_period_range(since_date, metrics.days_count)
         prev_since, prev_before = _format_api_range(prev_since_date, prev_before_date)
         try:
             previous_total_seconds, _ = get_time_sum(prev_since, prev_before)
-            delta_seconds = total_seconds - previous_total_seconds
+            delta_seconds = metrics.total_seconds - previous_total_seconds
             delta_percent = round((delta_seconds / previous_total_seconds) * 100, 1) if previous_total_seconds > 0 else None
             comparison = {
-                "period_days": days_count,
-                "previous": _seconds_to_parts(previous_total_seconds),
-                "delta": _seconds_to_parts(delta_seconds, allow_negative=True),
+                "period_days": metrics.days_count,
+                "previous": seconds_to_parts(previous_total_seconds),
+                "delta": seconds_to_parts(delta_seconds, allow_negative=True),
                 "delta_percent": delta_percent,
                 "direction": "up" if delta_seconds > 0 else "down" if delta_seconds < 0 else "flat",
                 "previous_since": prev_since_date.isoformat(),
@@ -194,26 +137,28 @@ def time_summary(request):
 
     return JsonResponse(
         {
-            **_seconds_to_parts(total_seconds),
-            "days_count": days_count,
-            "average_per_day_seconds": average_per_day_seconds,
-            "average_per_day_hours": average_per_day_seconds // 3600,
-            "average_per_day_minutes": (average_per_day_seconds % 3600) // 60,
-            "busiest_day": busiest_day,
-            "top_days": top_days,
+            **seconds_to_parts(metrics.total_seconds),
+            "days_count": metrics.days_count,
+            "average_per_day_seconds": metrics.average_per_day_seconds,
+            "average_per_day_hours": metrics.average_per_day_seconds // 3600,
+            "average_per_day_minutes": (metrics.average_per_day_seconds % 3600) // 60,
+            "busiest_day": metrics.busiest_day,
+            "top_days": metrics.top_days,
+            "include_weekends": include_weekends,
             "insights": {
-                "active_days": active_days,
-                "inactive_days": inactive_days,
-                "activity_rate_percent": activity_rate_percent,
-                "longest_streak_days": longest_streak_days,
-                "current_streak_days": current_streak_days,
-                "weekday": _seconds_to_parts(weekday_seconds),
-                "weekend": _seconds_to_parts(weekend_seconds),
-                "weekday_share_percent": weekday_share_percent,
-                "weekend_share_percent": weekend_share_percent,
+                "active_days": metrics.active_days,
+                "inactive_days": metrics.inactive_days,
+                "activity_rate_percent": metrics.activity_rate_percent,
+                "longest_streak_days": metrics.longest_streak_days,
+                "current_streak_days": metrics.current_streak_days,
+                "weekday": seconds_to_parts(metrics.weekday_seconds),
+                "weekend": seconds_to_parts(metrics.weekend_seconds),
+                "weekday_share_percent": metrics.weekday_share_percent,
+                "weekend_share_percent": metrics.weekend_share_percent,
             },
             "comparison": comparison,
             "daily_breakdown": daily_breakdown,
+            "weekly_breakdown": weekly_breakdown,
         }
     )
 
