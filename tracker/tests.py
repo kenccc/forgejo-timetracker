@@ -50,8 +50,12 @@ class TimeSummaryTests(TestCase):
                     "2026-03-01": 7200,
                     "2026-03-03": 3600,
                 },
+                {
+                    "repo/app#12 Add auth": 7200,
+                    "repo/app#9 Fix bug": 3600,
+                },
             ),
-            (7200, {"2026-02-28": 7200}),
+            (7200, {"2026-02-28": 7200}, {"repo/app#8 Setup": 7200}),
         ]
 
         response = self.client.get(
@@ -72,6 +76,8 @@ class TimeSummaryTests(TestCase):
         self.assertEqual(data["comparison"]["direction"], "up")
         self.assertEqual(len(data["top_days"]), 2)
         self.assertEqual(len(data["weekly_breakdown"]), 2)
+        self.assertEqual(data["issue_breakdown"][0]["issue"], "repo/app#12 Add auth")
+        self.assertEqual(data["issue_breakdown"][0]["total_seconds"], 7200)
 
     def test_time_summary_rejects_invalid_range(self):
         response = self.client.get(
@@ -101,7 +107,7 @@ class TimeSummaryTests(TestCase):
     @patch("tracker.views.get_time_sum")
     def test_time_summary_returns_without_comparison_when_previous_period_fails(self, mock_get_time_sum):
         mock_get_time_sum.side_effect = [
-            (3600, {"2026-03-01": 3600}),
+            (3600, {"2026-03-01": 3600}, {"repo/app#1 Work": 3600}),
             TimeTrackingServiceError("prev period down"),
         ]
         response = self.client.get(
@@ -121,8 +127,9 @@ class TimeSummaryTests(TestCase):
                     "2026-03-07": 3600,  # Sat
                     "2026-03-08": 3600,  # Sun
                 },
+                {"repo/app#2 Work": 10800},
             ),
-            (0, {}),
+            (0, {}, {}),
         ]
         response = self.client.get(
             "/api/time-summary/",
@@ -158,14 +165,35 @@ class ServiceTests(TestCase):
     @patch("tracker.services._HTTP_SESSION.get")
     def test_get_time_sum_fetches_all_pages(self, mock_get):
         mock_get.side_effect = [
-            MockResponse(200, [{"time": 3600, "created": "2026-03-01T08:00:00Z"}]),
-            MockResponse(200, [{"time": 1800, "created": "2026-03-02T08:00:00Z"}]),
+            MockResponse(
+                200,
+                [
+                    {
+                        "time": 3600,
+                        "created": "2026-03-01T08:00:00Z",
+                        "issue": {"number": 7, "title": "API"},
+                        "repo": {"full_name": "acme/project"},
+                    }
+                ],
+            ),
+            MockResponse(
+                200,
+                [
+                    {
+                        "time": 1800,
+                        "created": "2026-03-02T08:00:00Z",
+                        "issue": {"number": 7, "title": "API"},
+                        "repo": {"full_name": "acme/project"},
+                    }
+                ],
+            ),
             MockResponse(200, []),
         ]
-        total, daily = get_time_sum("2026-03-01T00:00:00Z", "2026-03-02T23:59:59Z")
+        total, daily, issues = get_time_sum("2026-03-01T00:00:00Z", "2026-03-02T23:59:59Z")
         self.assertEqual(total, 5400)
         self.assertEqual(daily["2026-03-01"], 3600)
         self.assertEqual(daily["2026-03-02"], 1800)
+        self.assertEqual(issues["acme/project#7 API"], 5400)
         self.assertEqual(mock_get.call_count, 3)
 
     @override_settings(FORGEJO_BASE_URL="https://forgejo.example", FORGEJO_TOKEN="abc")

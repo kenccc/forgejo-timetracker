@@ -31,22 +31,30 @@
 
     <div class="card">
         <div class="field">
-            <label class="field-label" for="since"><i data-lucide="calendar-days"></i>From</label>
-            <input class="field-input" type="date" id="since">
+            <label class="field-label" for="userSelect"><i data-lucide="users"></i>User</label>
+            <select class="field-input" id="userSelect">
+                <option value="">All users (self)</option>
+            </select>
         </div>
-        <div class="field">
-            <label class="field-label" for="before"><i data-lucide="calendar-check"></i>To</label>
-            <input class="field-input" type="date" id="before">
+        <div class="field-row">
+            <div class="field">
+                <label class="field-label" for="since"><i data-lucide="calendar-days"></i>From</label>
+                <input class="field-input" type="date" id="since">
+            </div>
+            <div class="field">
+                <label class="field-label" for="before"><i data-lucide="calendar-check"></i>To</label>
+                <input class="field-input" type="date" id="before">
+            </div>
         </div>
-        <div class="field">
-            <label class="field-label" for="goalHours"><i data-lucide="target"></i>Goal (hours)</label>
-            <input class="field-input" type="number" id="goalHours" min="0" step="0.5" placeholder="e.g. 40">
-            <div class="field-help">Used for progress tracking in this range. Saved in your browser.</div>
-        </div>
-        <div class="field">
-            <label class="field-label" for="hourlyRate"><i data-lucide="coins"></i>Rate (per hour)</label>
-            <input class="field-input" type="number" id="hourlyRate" min="0" step="0.01" placeholder="e.g. 25">
-            <div class="field-help">Salary = worked hours × rate. Saved in your browser.</div>
+        <div class="field-row">
+            <div class="field">
+                <label class="field-label" for="goalHours"><i data-lucide="target"></i>Goal (hours)</label>
+                <input class="field-input" type="number" id="goalHours" min="0" step="0.5" placeholder="e.g. 40">
+            </div>
+            <div class="field">
+                <label class="field-label" for="hourlyRate"><i data-lucide="coins"></i>Rate (per hour)</label>
+                <input class="field-input" type="number" id="hourlyRate" min="0" step="0.01" placeholder="e.g. 25">
+            </div>
         </div>
         <button class="btn" id="calcBtn" type="button"><i data-lucide="clock-4"></i>Calculate</button>
         <div class="quick-ranges">
@@ -102,7 +110,12 @@
                 <button class="btn btn-secondary" type="button" id="exportBtn" disabled><i data-lucide="file-spreadsheet"></i>Export Excel</button>
                 <button class="btn btn-secondary" type="button" id="copySummaryBtn" disabled><i data-lucide="clipboard-copy"></i>Copy summary</button>
             </div>
+            <div class="breakdown-switch">
+                <button class="breakdown-btn active" type="button" id="byDayBtn">By day</button>
+                <button class="breakdown-btn" type="button" id="byIssueBtn">By issue</button>
+            </div>
             <div class="daily-breakdown" id="dailyBreakdown"></div>
+            <div class="daily-breakdown hidden" id="issueBreakdown"></div>
         </div>
     </div>
 

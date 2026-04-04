@@ -1,9 +1,12 @@
 (function () {
     const goalStorageKey = "forgejo-time-goal-hours";
     const rateStorageKey = "forgejo-hourly-rate";
+    const userStorageKey = "forgejo-selected-user";
     let latestSummaryData = null;
     let latestSince = null;
     let latestBefore = null;
+    let breakdownMode = "day";
+    let forgejoUsers = [];
 
     function initIcons() {
         if (window.lucide) {
@@ -152,6 +155,39 @@
         });
     }
 
+    function renderIssueBreakdown(rows) {
+        const container = byId("issueBreakdown");
+        container.innerHTML = "";
+        if (!rows.length) {
+            const row = document.createElement("div");
+            row.className = "daily-row";
+            row.innerHTML = '<span class="daily-date">No issue data in this range.</span>';
+            container.appendChild(row);
+            return;
+        }
+        rows.forEach((row) => {
+            const item = document.createElement("div");
+            item.className = "daily-row";
+            const issue = document.createElement("span");
+            issue.className = "daily-date";
+            issue.textContent = row.issue;
+            const time = document.createElement("span");
+            time.className = "daily-time";
+            time.textContent = formatDuration(row.hours, row.minutes);
+            item.appendChild(issue);
+            item.appendChild(time);
+            container.appendChild(item);
+        });
+    }
+
+    function renderBreakdownMode() {
+        const isIssueMode = breakdownMode === "issue";
+        byId("dailyBreakdown").classList.toggle("hidden", isIssueMode);
+        byId("issueBreakdown").classList.toggle("hidden", !isIssueMode);
+        byId("byDayBtn").classList.toggle("active", !isIssueMode);
+        byId("byIssueBtn").classList.toggle("active", isIssueMode);
+    }
+
     function renderGoalProgress(data) {
         const goal = parseGoalHours();
         if (!goal) {
@@ -208,8 +244,10 @@
         renderSalary(data);
         renderTopDays(data.top_days || []);
         renderWeeklyBreakdown(data.weekly_breakdown || []);
+        renderIssueBreakdown(data.issue_breakdown || []);
         renderDailyChart(data.daily_breakdown || []);
         renderDailyBreakdown(data.daily_breakdown || []);
+        renderBreakdownMode();
         byId("result").classList.add("visible");
         byId("exportBtn").disabled = false;
         byId("copySummaryBtn").disabled = false;
@@ -230,7 +268,9 @@
         initIcons();
 
         try {
+            const username = byId("userSelect").value;
             const query = new URLSearchParams({ since, before });
+            if (username) query.set("username", username);
             const res = await fetch(`/api/time-summary/?${query.toString()}`);
             if (!res.ok) {
                 const body = await res.json().catch(() => null);
@@ -274,6 +314,17 @@
         const ws = window.XLSX.utils.json_to_sheet(rows);
         const wb = window.XLSX.utils.book_new();
         window.XLSX.utils.book_append_sheet(wb, ws, "Time Summary");
+        const issueRows = (latestSummaryData.issue_breakdown || []).map((row) => ({
+            Issue: row.issue,
+            Hours: row.hours,
+            Minutes: row.minutes,
+            "Total (h:mm)": formatDuration(row.hours, row.minutes),
+            "Total Seconds": row.total_seconds,
+        }));
+        if (issueRows.length) {
+            const issueSheet = window.XLSX.utils.json_to_sheet(issueRows);
+            window.XLSX.utils.book_append_sheet(wb, issueSheet, "By Issue");
+        }
         const safeSince = (latestSince || "since").replaceAll("-", "");
         const safeBefore = (latestBefore || "before").replaceAll("-", "");
         window.XLSX.writeFile(wb, `time-summary-${safeSince}-${safeBefore}.xlsx`);
@@ -286,6 +337,9 @@
             `Period: ${formatDayLabel(latestSince)} - ${formatDayLabel(latestBefore)}`,
             `Average/day: ${formatDuration(latestSummaryData.average_per_day_hours, latestSummaryData.average_per_day_minutes)}`,
             `Active days: ${latestSummaryData.insights?.active_days || 0}/${latestSummaryData.days_count || 0}`,
+            ...(latestSummaryData.issue_breakdown || [])
+                .slice(0, 5)
+                .map((row) => `${row.issue}: ${formatDuration(row.hours, row.minutes)}`),
         ].join("\n");
         try {
             await navigator.clipboard.writeText(text);
@@ -302,11 +356,30 @@
         else localStorage.setItem(key, value);
     }
 
+    async function loadForgejoUsers() {
+        try {
+            const res = await fetch("/api/users/");
+            if (!res.ok) return;
+            const data = await res.json();
+            forgejoUsers = data.users || [];
+            const select = byId("userSelect");
+            forgejoUsers.forEach((user) => {
+                const option = document.createElement("option");
+                option.value = user.username;
+                option.textContent = user.full_name !== user.username ? `${user.full_name} (${user.username})` : user.username;
+                select.appendChild(option);
+            });
+        } catch {
+        }
+    }
+
     function loadSavedValues() {
         const savedGoal = localStorage.getItem(goalStorageKey);
         const savedRate = localStorage.getItem(rateStorageKey);
+        const savedUser = localStorage.getItem(userStorageKey);
         if (savedGoal) byId("goalHours").value = savedGoal;
         if (savedRate) byId("hourlyRate").value = savedRate;
+        if (savedUser) byId("userSelect").value = savedUser;
     }
 
     function attachEvents() {
@@ -321,6 +394,17 @@
             persistInput(rateStorageKey, "hourlyRate");
             if (latestSummaryData) renderSalary(latestSummaryData);
         });
+        byId("byDayBtn").addEventListener("click", () => {
+            breakdownMode = "day";
+            renderBreakdownMode();
+        });
+        byId("byIssueBtn").addEventListener("click", () => {
+            breakdownMode = "issue";
+            renderBreakdownMode();
+        });
+        byId("userSelect").addEventListener("change", () => {
+            persistInput(userStorageKey, "userSelect");
+        });
         document.querySelectorAll(".quick-range-btn").forEach((button) => {
             button.addEventListener("click", () => {
                 const range = button.dataset.range;
@@ -331,10 +415,12 @@
         });
     }
 
-    document.addEventListener("DOMContentLoaded", function () {
+    document.addEventListener("DOMContentLoaded", async function () {
         initIcons();
+        await loadForgejoUsers();
         loadSavedValues();
         setPresetRange(7);
         attachEvents();
+        renderBreakdownMode();
     });
 })();
