@@ -21,7 +21,9 @@
             <div class="header-title">Time Tracker</div>
             <div class="header-subtitle">Forgejo · Time Summary</div>
         </div>
-        <div class="header-meta">
+        <div class="header-actions">
+            <button class="icon-btn" id="themeToggle" type="button" title="Toggle theme"><i data-lucide="sun-moon"></i></button>
+            <button class="icon-btn" id="widgetToggle" type="button" title="Customize widgets"><i data-lucide="layout-grid"></i></button>
             <form method="post" action="/logout/">
                 {% csrf_token %}
                 <button class="logout-btn" type="submit">Log out</button>
@@ -62,6 +64,29 @@
             <button class="quick-range-btn" type="button" data-range="30">Last 30 days</button>
             <button class="quick-range-btn" type="button" data-range="month">This month</button>
             <button class="quick-range-btn" type="button" data-range="week">This week</button>
+            <button class="quick-range-btn" type="button" data-range="quarter">This quarter</button>
+            <button class="quick-range-btn" type="button" data-range="year">This year</button>
+        </div>
+
+        <div class="saved-ranges">
+            <div class="saved-ranges-header">
+                <span class="saved-ranges-label"><i data-lucide="bookmark"></i>Saved ranges</span>
+                <button class="icon-btn-sm" id="saveRangeBtn" type="button" title="Save current range"><i data-lucide="bookmark-plus"></i></button>
+            </div>
+            <div class="saved-ranges-list" id="savedRangesList"></div>
+        </div>
+
+        <div class="options-row">
+            <label class="toggle-label">
+                <input type="checkbox" id="includeWeekends" checked>
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                <span class="toggle-text">Include weekends</span>
+            </label>
+            <label class="toggle-label">
+                <input type="checkbox" id="autoRefresh">
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                <span class="toggle-text">Auto-refresh (5m)</span>
+            </label>
         </div>
 
         <div class="error-msg" id="errorMsg"><i data-lucide="alert-circle"></i><span id="errorText"></span></div>
@@ -94,32 +119,164 @@
                 <div class="comparison-head"><span class="comparison-label">Goal progress</span><span class="comparison-value" id="goalProgressText">Set a goal</span></div>
                 <div class="goal-track"><div class="goal-bar" id="goalProgressBar"></div></div>
             </div>
-            <div class="daily-chart-wrap">
-                <div class="daily-chart-title">Hours worked each day</div>
-                <div class="daily-chart" id="dailyChart"></div>
+
+            <div class="widget-section" id="widgetHeatmap">
+                <div class="section-card">
+                    <div class="section-header">
+                        <div class="section-title"><i data-lucide="calendar"></i>Activity Heatmap</div>
+                    </div>
+                    <div class="heatmap-container" id="heatmapContainer"></div>
+                    <div class="heatmap-legend">
+                        <span>Less</span>
+                        <div class="heatmap-level" data-level="0"></div>
+                        <div class="heatmap-level" data-level="1"></div>
+                        <div class="heatmap-level" data-level="2"></div>
+                        <div class="heatmap-level" data-level="3"></div>
+                        <div class="heatmap-level" data-level="4"></div>
+                        <span>More</span>
+                    </div>
+                </div>
             </div>
-            <div class="weekly-card">
-                <div class="daily-chart-title">Weekly totals</div>
-                <ol class="top-days-list" id="weeklyBreakdown"></ol>
+
+            <div class="widget-section" id="widgetTrend">
+                <div class="section-card">
+                    <div class="section-header">
+                        <div class="section-title"><i data-lucide="trending-up"></i>Productivity Trend</div>
+                        <div class="trend-toggle">
+                            <button class="trend-toggle-btn active" data-view="daily">Daily</button>
+                            <button class="trend-toggle-btn" data-view="weekly">Weekly</button>
+                            <button class="trend-toggle-btn" data-view="monthly">Monthly</button>
+                        </div>
+                    </div>
+                    <div class="trend-chart" id="trendChart"></div>
+                </div>
             </div>
-            <div class="top-days">
-                <div class="top-days-title">Top days</div>
-                <ol class="top-days-list" id="topDaysList"></ol>
+
+            <div class="widget-section" id="widgetDonut">
+                <div class="section-card">
+                    <div class="section-header">
+                        <div class="section-title"><i data-lucide="pie-chart"></i>Time by Project</div>
+                    </div>
+                    <div class="donut-container">
+                        <div class="donut-chart" id="donutChart"></div>
+                        <div class="donut-legend" id="donutLegend"></div>
+                    </div>
+                </div>
             </div>
+
+            <div class="widget-section" id="widgetWeekdayDist">
+                <div class="section-card">
+                    <div class="section-header">
+                        <div class="section-title"><i data-lucide="bar-chart-3"></i>Weekday Distribution</div>
+                    </div>
+                    <div class="weekday-chart" id="weekdayChart"></div>
+                </div>
+            </div>
+
+            <div class="daily-chart-wrap widget-section" id="widgetDailyChart">
+                <div class="section-card">
+                    <div class="section-header">
+                        <div class="section-title">Hours worked each day</div>
+                    </div>
+                    <div class="daily-chart" id="dailyChart"></div>
+                </div>
+            </div>
+
+            <div class="weekly-card widget-section" id="widgetWeekly">
+                <div class="section-card">
+                    <div class="section-header">
+                        <div class="section-title">Weekly totals</div>
+                    </div>
+                    <ol class="top-days-list" id="weeklyBreakdown"></ol>
+                </div>
+            </div>
+
+            <div class="top-days widget-section" id="widgetTopDays">
+                <div class="section-card">
+                    <div class="section-header">
+                        <div class="section-title">Top days</div>
+                    </div>
+                    <ol class="top-days-list" id="topDaysList"></ol>
+                </div>
+            </div>
+
             <div class="button-row">
                 <button class="btn btn-secondary" type="button" id="exportBtn" disabled><i data-lucide="file-spreadsheet"></i>Export Excel</button>
+                <button class="btn btn-secondary" type="button" id="exportCsvBtn" disabled><i data-lucide="file-text"></i>Export CSV</button>
                 <button class="btn btn-secondary" type="button" id="copySummaryBtn" disabled><i data-lucide="clipboard-copy"></i>Copy summary</button>
+                <button class="btn btn-secondary" type="button" id="reportBtn" disabled><i data-lucide="file-bar-chart"></i>Generate report</button>
             </div>
             <div class="breakdown-switch">
                 <button class="breakdown-btn active" type="button" id="byDayBtn">By day</button>
                 <button class="breakdown-btn" type="button" id="byIssueBtn">By issue</button>
+                <button class="breakdown-btn" type="button" id="byProjectBtn">By project</button>
+            </div>
+            <div class="search-bar" id="searchBar">
+                <i data-lucide="search" class="search-icon"></i>
+                <input type="text" class="search-input" id="searchInput" placeholder="Filter issues or projects...">
             </div>
             <div class="daily-breakdown" id="dailyBreakdown"></div>
             <div class="daily-breakdown hidden" id="issueBreakdown"></div>
+            <div class="daily-breakdown hidden" id="projectBreakdown"></div>
         </div>
     </div>
 
-    <div class="footer">Forgejo Time Tracker</div>
+    <div class="footer">Forgejo Time Tracker · Press <kbd>?</kbd> for shortcuts</div>
 </div>
+
+<div class="modal-overlay hidden" id="shortcutModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Keyboard Shortcuts</h3>
+            <button class="modal-close" id="closeShortcuts"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="shortcut-row"><kbd>Ctrl</kbd> + <kbd>Enter</kbd><span>Calculate</span></div>
+            <div class="shortcut-row"><kbd>Ctrl</kbd> + <kbd>K</kbd><span>Focus search</span></div>
+            <div class="shortcut-row"><kbd>Ctrl</kbd> + <kbd>E</kbd><span>Export Excel</span></div>
+            <div class="shortcut-row"><kbd>Ctrl</kbd> + <kbd>C</kbd><span>Copy summary</span></div>
+            <div class="shortcut-row"><kbd>Ctrl</kbd> + <kbd>D</kbd><span>Toggle dark/light theme</span></div>
+            <div class="shortcut-row"><kbd>Ctrl</kbd> + <kbd>W</kbd><span>Toggle widget panel</span></div>
+            <div class="shortcut-row"><kbd>1</kbd> - <kbd>6</kbd><span>Quick ranges (7d, 30d, month, week, quarter, year)</span></div>
+            <div class="shortcut-row"><kbd>?</kbd><span>Show/hide this help</span></div>
+            <div class="shortcut-row"><kbd>Esc</kbd><span>Close modal / clear search</span></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay hidden" id="widgetModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Customize Widgets</h3>
+            <button class="modal-close" id="closeWidgetModal"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="widget-toggle-list">
+                <label class="widget-toggle-item"><input type="checkbox" checked data-widget="widgetHeatmap"> Activity Heatmap</label>
+                <label class="widget-toggle-item"><input type="checkbox" checked data-widget="widgetTrend"> Productivity Trend</label>
+                <label class="widget-toggle-item"><input type="checkbox" checked data-widget="widgetDonut"> Time by Project</label>
+                <label class="widget-toggle-item"><input type="checkbox" checked data-widget="widgetWeekdayDist"> Weekday Distribution</label>
+                <label class="widget-toggle-item"><input type="checkbox" checked data-widget="widgetDailyChart"> Daily Chart</label>
+                <label class="widget-toggle-item"><input type="checkbox" checked data-widget="widgetWeekly"> Weekly Totals</label>
+                <label class="widget-toggle-item"><input type="checkbox" checked data-widget="widgetTopDays"> Top Days</label>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay hidden" id="reportModal">
+    <div class="modal modal-lg">
+        <div class="modal-header">
+            <h3>Time Report</h3>
+            <button class="modal-close" id="closeReportModal"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body" id="reportContent"></div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" id="copyReportBtn"><i data-lucide="clipboard-copy"></i>Copy report</button>
+        </div>
+    </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
 </body>
 </html>

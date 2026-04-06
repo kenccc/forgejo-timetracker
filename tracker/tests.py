@@ -2,6 +2,20 @@ from django.test import TestCase
 from django.test import override_settings
 from unittest.mock import patch
 from tracker.services import TimeTrackingServiceError, _parse_entry_date, get_time_sum
+from tracker.analytics import (
+    build_daily_breakdown,
+    compute_summary_metrics,
+    compute_weekly_breakdown,
+    calculate_streaks,
+    seconds_to_parts,
+    compute_heatmap_data,
+    compute_trend_data,
+    compute_project_breakdown,
+    compute_hourly_distribution,
+    compute_monthly_totals,
+    compute_advanced_metrics,
+)
+from datetime import date
 
 
 class AuthFlowTests(TestCase):
@@ -105,7 +119,9 @@ class TimeSummaryTests(TestCase):
         self.assertIn("Failed to load data", response.json()["error"])
 
     @patch("tracker.views.get_time_sum")
-    def test_time_summary_returns_without_comparison_when_previous_period_fails(self, mock_get_time_sum):
+    def test_time_summary_returns_without_comparison_when_previous_period_fails(
+        self, mock_get_time_sum
+    ):
         mock_get_time_sum.side_effect = [
             (3600, {"2026-03-01": 3600}, {"repo/app#1 Work": 3600}),
             TimeTrackingServiceError("prev period down"),
@@ -189,7 +205,9 @@ class ServiceTests(TestCase):
             ),
             MockResponse(200, []),
         ]
-        total, daily, issues = get_time_sum("2026-03-01T00:00:00Z", "2026-03-02T23:59:59Z")
+        total, daily, issues = get_time_sum(
+            "2026-03-01T00:00:00Z", "2026-03-02T23:59:59Z"
+        )
         self.assertEqual(total, 5400)
         self.assertEqual(daily["2026-03-01"], 3600)
         self.assertEqual(daily["2026-03-02"], 1800)
@@ -213,7 +231,127 @@ class MockResponse:
     def raise_for_status(self):
         if self._raise_http:
             import requests
+
             raise requests.HTTPError(f"HTTP {self.status_code}")
 
     def json(self):
         return self._payload
+
+
+class AnalyticsTests(TestCase):
+    def test_seconds_to_parts(self):
+        result = seconds_to_parts(7265)
+        self.assertEqual(result["hours"], 2)
+        self.assertEqual(result["minutes"], 1)
+        self.assertEqual(result["total_seconds"], 7265)
+
+    def test_seconds_to_parts_negative(self):
+        result = seconds_to_parts(-3660, allow_negative=True)
+        self.assertEqual(result["hours"], 1)
+        self.assertEqual(result["minutes"], 1)
+        self.assertEqual(result["sign"], -1)
+
+    def test_build_daily_breakdown(self):
+        daily = {"2026-03-01": 3600, "2026-03-03": 7200}
+        result = build_daily_breakdown(date(2026, 3, 1), date(2026, 3, 3), daily)
+        self.assertEqual(len(result), 3)
+        self.assertEqual(result[0]["date"], "2026-03-01")
+        self.assertEqual(result[1]["total_seconds"], 0)
+        self.assertEqual(result[2]["hours"], 2)
+
+    def test_build_daily_breakdown_excludes_weekends(self):
+        daily = {
+            "2026-03-06": 3600,
+            "2026-03-07": 3600,
+            "2026-03-08": 3600,
+        }
+        result = build_daily_breakdown(
+            date(2026, 3, 6), date(2026, 3, 8), daily, include_weekends=False
+        )
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["date"], "2026-03-06")
+
+    def test_calculate_streaks(self):
+        breakdown = [
+            {"date": "2026-03-01", "total_seconds": 3600},
+            {"date": "2026-03-02", "total_seconds": 3600},
+            {"date": "2026-03-03", "total_seconds": 0},
+            {"date": "2026-03-04", "total_seconds": 3600},
+        ]
+        longest, current = calculate_streaks(breakdown)
+        self.assertEqual(longest, 2)
+        self.assertEqual(current, 1)
+
+    def test_compute_weekly_breakdown(self):
+        breakdown = [
+            {"date": "2026-03-02", "total_seconds": 3600},
+            {"date": "2026-03-03", "total_seconds": 3600},
+        ]
+        result = compute_weekly_breakdown(breakdown)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["total_seconds"], 7200)
+
+    def test_compute_heatmap_data(self):
+        breakdown = [
+            {"date": "2026-03-02", "total_seconds": 3600},
+            {"date": "2026-03-03", "total_seconds": 0},
+        ]
+        result = compute_heatmap_data(breakdown)
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]["weekday"], 0)
+
+    def test_compute_trend_data(self):
+        breakdown = [
+            {"date": "2026-03-01", "total_seconds": 3600},
+            {"date": "2026-03-02", "total_seconds": 7200},
+            {"date": "2026-03-03", "total_seconds": 1800},
+        ]
+        result = compute_trend_data(breakdown, window=2)
+        self.assertEqual(len(result), 3)
+        self.assertEqual(result[0]["hours"], 1.0)
+        self.assertEqual(result[1]["moving_avg"], 1.5)
+
+    def test_compute_project_breakdown(self):
+        issues = {
+            "repo/app#12 Feature": 7200,
+            "repo/app#9 Bug": 3600,
+            "other/project#5 Task": 1800,
+        }
+        result = compute_project_breakdown(issues)
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]["project"], "repo/app")
+        self.assertEqual(result[0]["total_seconds"], 10800)
+
+    def test_compute_hourly_distribution(self):
+        breakdown = [
+            {"date": "2026-03-02", "total_seconds": 7200},
+            {"date": "2026-03-03", "total_seconds": 3600},
+        ]
+        result = compute_hourly_distribution(breakdown)
+        self.assertEqual(len(result), 7)
+        self.assertEqual(result[0]["day"], "Mon")
+        self.assertEqual(result[0]["total_seconds"], 7200)
+
+    def test_compute_monthly_totals(self):
+        breakdown = [
+            {"date": "2026-03-01", "total_seconds": 3600},
+            {"date": "2026-03-15", "total_seconds": 3600},
+            {"date": "2026-04-01", "total_seconds": 7200},
+        ]
+        result = compute_monthly_totals(breakdown)
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]["month"], "2026-03")
+        self.assertEqual(result[0]["total_seconds"], 7200)
+
+    def test_compute_advanced_metrics(self):
+        breakdown = [
+            {"date": "2026-03-02", "total_seconds": 3600},
+            {"date": "2026-03-03", "total_seconds": 7200},
+        ]
+        issues = {"repo/app#1 Work": 10800}
+        result = compute_advanced_metrics(breakdown, issues)
+        self.assertTrue(len(result.heatmap) == 2)
+        self.assertTrue(len(result.trend) == 2)
+        self.assertTrue(len(result.project_breakdown) == 1)
+        self.assertTrue(len(result.hourly_distribution) == 7)
+        self.assertTrue(len(result.monthly_totals) == 1)

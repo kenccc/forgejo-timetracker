@@ -13,6 +13,7 @@ from .analytics import (
     compute_summary_metrics,
     compute_weekly_breakdown,
     seconds_to_parts,
+    compute_advanced_metrics,
 )
 
 MAX_RANGE_DAYS = 366
@@ -174,6 +175,8 @@ def time_summary(request):
         except TimeTrackingServiceError:
             comparison = None
 
+    advanced = compute_advanced_metrics(daily_breakdown, issue_seconds)
+
     return JsonResponse(
         {
             **seconds_to_parts(metrics.total_seconds),
@@ -208,6 +211,13 @@ def time_summary(request):
                 )
                 if seconds > 0
             ],
+            "advanced": {
+                "heatmap": advanced.heatmap,
+                "trend": advanced.trend,
+                "project_breakdown": advanced.project_breakdown,
+                "hourly_distribution": advanced.hourly_distribution,
+                "monthly_totals": advanced.monthly_totals,
+            },
         }
     )
 

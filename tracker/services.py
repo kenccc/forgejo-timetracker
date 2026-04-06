@@ -65,12 +65,10 @@ def get_time_sum(since, before, username=None):
     if not settings.FORGEJO_BASE_URL or not settings.FORGEJO_TOKEN:
         raise TimeTrackingServiceError("Forgejo API credentials are not configured.")
 
-    if username:
-        url = f"{settings.FORGEJO_BASE_URL.rstrip('/')}/api/v1/users/{username}/times"
-    else:
-        url = f"{settings.FORGEJO_BASE_URL.rstrip('/')}/api/v1/user/times"
-
+    url = f"{settings.FORGEJO_BASE_URL.rstrip('/')}/api/v1/user/times"
     headers = {"Authorization": f"token {settings.FORGEJO_TOKEN}"}
+    if username:
+        headers["Sudo"] = username
 
     params = {"since": since, "before": before}
 
