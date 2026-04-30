@@ -1,0 +1,19 @@
+services:
+  web:
+    build: ./planka_tracker
+    entrypoint: ""
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - ./planka_tracker:/code
+      - planka_data:/data
+    env_file: .env
+    environment:
+      - DEBUG=True
+      - DB_PATH=/data/db.sqlite3
+    ports:
+      - "8000:8000"
+
+volumes:
+  planka_data:
