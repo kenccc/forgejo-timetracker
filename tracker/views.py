@@ -7,7 +7,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_http_methods, require_POST
 from datetime import date, timedelta
 
-from .services import TimeTrackingServiceError, get_time_sum, get_forgejo_users
+from .services import TimeTrackingServiceError, get_time_sum, get_planka_users
 from .analytics import (
     build_daily_breakdown,
     compute_summary_metrics,
@@ -132,8 +132,8 @@ def time_summary(request):
         total_seconds, daily_seconds, issue_seconds = _unpack_time_sum_result(
             get_time_sum(since, before, username=username)
         )
-    except TimeTrackingServiceError:
-        return JsonResponse({"error": "Failed to load data from Forgejo"}, status=502)
+    except TimeTrackingServiceError as exc:
+        return JsonResponse({"error": str(exc)}, status=502)
     daily_breakdown = build_daily_breakdown(
         since_date,
         before_date,
@@ -230,7 +230,7 @@ def index(request):
 @login_required
 def user_list(request):
     try:
-        users = get_forgejo_users()
-    except TimeTrackingServiceError:
-        return JsonResponse({"error": "Failed to load users from Forgejo"}, status=502)
+        users = get_planka_users()
+    except TimeTrackingServiceError as exc:
+        return JsonResponse({"error": str(exc)}, status=502)
     return JsonResponse({"users": users})

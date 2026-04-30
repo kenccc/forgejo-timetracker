@@ -1,15 +1,15 @@
 (function () {
-    const goalStorageKey = "forgejo-time-goal-hours";
-    const rateStorageKey = "forgejo-hourly-rate";
-    const userStorageKey = "forgejo-selected-user";
-    const themeStorageKey = "forgejo-theme";
-    const savedRangesKey = "forgejo-saved-ranges";
-    const widgetsStorageKey = "forgejo-widget-visibility";
+    const goalStorageKey = "planka-time-goal-hours";
+    const rateStorageKey = "planka-hourly-rate";
+    const userStorageKey = "planka-selected-user";
+    const themeStorageKey = "planka-theme";
+    const savedRangesKey = "planka-saved-ranges";
+    const widgetsStorageKey = "planka-widget-visibility";
     let latestSummaryData = null;
     let latestSince = null;
     let latestBefore = null;
     let breakdownMode = "day";
-    let forgejoUsers = [];
+    let plankaUsers = [];
     let autoRefreshInterval = null;
     let trendViewMode = "daily";
 
@@ -200,7 +200,7 @@
         if (!filtered.length) {
             const row = document.createElement("div");
             row.className = "daily-row";
-            row.innerHTML = '<span class="daily-date">No issue data in this range.</span>';
+            row.innerHTML = '<span class="daily-date">No card data in this range.</span>';
             container.appendChild(row);
             return;
         }
@@ -596,7 +596,7 @@
         const wb = window.XLSX.utils.book_new();
         window.XLSX.utils.book_append_sheet(wb, ws, "Time Summary");
         const issueRows = (latestSummaryData.issue_breakdown || []).map((row) => ({
-            Issue: row.issue,
+            Card: row.issue,
             Hours: row.hours,
             Minutes: row.minutes,
             "Total (h:mm)": formatDuration(row.hours, row.minutes),
@@ -604,7 +604,7 @@
         }));
         if (issueRows.length) {
             const issueSheet = window.XLSX.utils.json_to_sheet(issueRows);
-            window.XLSX.utils.book_append_sheet(wb, issueSheet, "By Issue");
+            window.XLSX.utils.book_append_sheet(wb, issueSheet, "By Card");
         }
         const projRows = (latestSummaryData.advanced?.project_breakdown || []).map((row) => ({
             Project: row.project,
@@ -631,7 +631,7 @@
         });
         csv += `\nTOTAL,${latestSummaryData.hours || 0},${latestSummaryData.minutes || 0},${latestSummaryData.total_seconds || 0}\n`;
         if (latestSummaryData.issue_breakdown?.length) {
-            csv += "\nIssue,Hours,Minutes,Total Seconds\n";
+            csv += "\nCard,Hours,Minutes,Total Seconds\n";
             latestSummaryData.issue_breakdown.forEach((row) => {
                 csv += `"${row.issue}",${row.hours},${row.minutes},${row.total_seconds}\n`;
             });
@@ -729,9 +729,9 @@
         if (data.issue_breakdown?.length) {
             reportHtml += `
                 <div class="report-section">
-                    <h4>Top Issues</h4>
+                    <h4>Top Cards</h4>
                     <table class="report-table">
-                        <tr><th>Issue</th><th>Hours</th></tr>
+                        <tr><th>Card</th><th>Hours</th></tr>
                         ${data.issue_breakdown.slice(0, 10).map((r) => `<tr><td>${r.issue}</td><td>${formatDuration(r.hours, r.minutes)}</td></tr>`).join("")}
                     </table>
                 </div>
@@ -748,14 +748,14 @@
         else localStorage.setItem(key, value);
     }
 
-    async function loadForgejoUsers() {
+    async function loadPlankaUsers() {
         try {
             const res = await fetch("/api/users/");
             if (!res.ok) return;
             const data = await res.json();
-            forgejoUsers = data.users || [];
+            plankaUsers = data.users || [];
             const select = byId("userSelect");
-            forgejoUsers.forEach((user) => {
+            plankaUsers.forEach((user) => {
                 const option = document.createElement("option");
                 option.value = user.username;
                 option.textContent = user.full_name !== user.username ? `${user.full_name} (${user.username})` : user.username;
@@ -1025,7 +1025,7 @@
     document.addEventListener("DOMContentLoaded", async function () {
         loadTheme();
         initIcons();
-        await loadForgejoUsers();
+        await loadPlankaUsers();
         loadSavedValues();
         loadSavedRanges();
         loadWidgetVisibility();

@@ -1,7 +1,13 @@
 from django.test import TestCase
 from django.test import override_settings
+from django.core.cache import cache
 from unittest.mock import patch
-from tracker.services import TimeTrackingServiceError, _parse_entry_date, get_time_sum
+from tracker.services import (
+    TimeTrackingServiceError,
+    _parse_entry_date,
+    get_planka_users,
+    get_time_sum,
+)
 from tracker.analytics import (
     build_daily_breakdown,
     compute_summary_metrics,
@@ -110,13 +116,15 @@ class TimeSummaryTests(TestCase):
 
     @patch("tracker.views.get_time_sum")
     def test_time_summary_returns_502_for_service_failures(self, mock_get_time_sum):
-        mock_get_time_sum.side_effect = TimeTrackingServiceError("boom")
+        mock_get_time_sum.side_effect = TimeTrackingServiceError(
+            "Planka authentication failed. Check whether PLANKA_TOKEN is valid."
+        )
         response = self.client.get(
             "/api/time-summary/",
             {"since": "2026-03-01T00:00:00Z", "before": "2026-03-03T23:59:59Z"},
         )
         self.assertEqual(response.status_code, 502)
-        self.assertIn("Failed to load data", response.json()["error"])
+        self.assertIn("PLANKA_TOKEN", response.json()["error"])
 
     @patch("tracker.views.get_time_sum")
     def test_time_summary_returns_without_comparison_when_previous_period_fails(
@@ -163,6 +171,9 @@ class TimeSummaryTests(TestCase):
 
 
 class ServiceTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
     def test_parse_entry_date_supports_multiple_formats(self):
         self.assertEqual(
             str(_parse_entry_date({"created_unix": 1710000000})),
@@ -177,33 +188,53 @@ class ServiceTests(TestCase):
             "2026-03-13",
         )
 
-    @override_settings(FORGEJO_BASE_URL="https://forgejo.example", FORGEJO_TOKEN="abc")
+    @override_settings(PLANKA_BASE_URL="https://planka.example", PLANKA_TOKEN="abc")
     @patch("tracker.services._HTTP_SESSION.get")
-    def test_get_time_sum_fetches_all_pages(self, mock_get):
+    def test_get_time_sum_fetches_all_visible_board_cards(self, mock_get):
         mock_get.side_effect = [
             MockResponse(
                 200,
-                [
-                    {
-                        "time": 3600,
-                        "created": "2026-03-01T08:00:00Z",
-                        "issue": {"number": 7, "title": "API"},
-                        "repo": {"full_name": "acme/project"},
-                    }
-                ],
+                {
+                    "items": [{"id": "project-1", "name": "Acme Product"}],
+                    "included": {
+                        "boards": [
+                            {"id": "board-1", "projectId": "project-1", "name": "Sprint"}
+                        ]
+                    },
+                },
             ),
             MockResponse(
                 200,
-                [
-                    {
-                        "time": 1800,
-                        "created": "2026-03-02T08:00:00Z",
-                        "issue": {"number": 7, "title": "API"},
-                        "repo": {"full_name": "acme/project"},
-                    }
-                ],
+                {
+                    "item": {"id": "board-1", "name": "Sprint"},
+                    "included": {
+                        "projects": [{"id": "project-1", "name": "Acme Product"}],
+                        "users": [
+                            {"id": "user-1", "username": "ken", "name": "Ken"}
+                        ],
+                        "cards": [
+                            {
+                                "id": "card-1",
+                                "name": "API",
+                                "updatedAt": "2026-03-01T08:00:00Z",
+                                "stopwatch": {"total": 3600},
+                                "creatorUserId": "user-1",
+                            },
+                            {
+                                "id": "card-2",
+                                "name": "UI",
+                                "updatedAt": "2026-03-02T08:00:00Z",
+                                "stopwatch": {"total": 1800},
+                                "creatorUserId": "user-1",
+                            },
+                        ],
+                        "cardMemberships": [
+                            {"cardId": "card-1", "userId": "user-1"},
+                            {"cardId": "card-2", "userId": "user-1"},
+                        ],
+                    },
+                },
             ),
-            MockResponse(200, []),
         ]
         total, daily, issues = get_time_sum(
             "2026-03-01T00:00:00Z", "2026-03-02T23:59:59Z"
@@ -211,15 +242,140 @@ class ServiceTests(TestCase):
         self.assertEqual(total, 5400)
         self.assertEqual(daily["2026-03-01"], 3600)
         self.assertEqual(daily["2026-03-02"], 1800)
-        self.assertEqual(issues["acme/project#7 API"], 5400)
-        self.assertEqual(mock_get.call_count, 3)
+        self.assertEqual(issues["Acme Product#Sprint · API"], 3600)
+        self.assertEqual(issues["Acme Product#Sprint · UI"], 1800)
+        self.assertEqual(mock_get.call_count, 2)
 
-    @override_settings(FORGEJO_BASE_URL="https://forgejo.example", FORGEJO_TOKEN="abc")
+    @override_settings(PLANKA_BASE_URL="https://planka.example", PLANKA_TOKEN="abc")
     @patch("tracker.services._HTTP_SESSION.get")
     def test_get_time_sum_raises_on_http_error(self, mock_get):
         mock_get.return_value = MockResponse(500, {"error": "boom"}, raise_http=True)
-        with self.assertRaises(TimeTrackingServiceError):
+        with self.assertRaisesMessage(
+            TimeTrackingServiceError, "Planka API request failed with status 500."
+        ):
             get_time_sum("2026-03-03T00:00:00Z", "2026-03-04T23:59:59Z")
+
+    @override_settings(PLANKA_BASE_URL="https://planka.example", PLANKA_TOKEN="abc")
+    @patch("tracker.services._HTTP_SESSION.get")
+    def test_get_time_sum_raises_helpful_error_for_unauthorized_token(self, mock_get):
+        mock_get.return_value = MockResponse(401, {"error": "unauthorized"}, raise_http=True)
+        with self.assertRaisesMessage(
+            TimeTrackingServiceError,
+            "Planka authentication failed. Check whether PLANKA_TOKEN is valid.",
+        ):
+            get_time_sum("2026-03-03T00:00:00Z", "2026-03-04T23:59:59Z")
+
+    @override_settings(PLANKA_BASE_URL="https://planka.example", PLANKA_TOKEN="abc")
+    @patch("tracker.services._HTTP_SESSION.get")
+    def test_get_time_sum_filters_by_card_member_username(self, mock_get):
+        mock_get.side_effect = [
+            MockResponse(
+                200,
+                {
+                    "items": [{"id": "project-1", "name": "Acme Product"}],
+                    "included": {
+                        "boards": [
+                            {"id": "board-1", "projectId": "project-1", "name": "Sprint"}
+                        ]
+                    },
+                },
+            ),
+            MockResponse(
+                200,
+                {
+                    "item": {"id": "board-1", "name": "Sprint"},
+                    "included": {
+                        "projects": [{"id": "project-1", "name": "Acme Product"}],
+                        "users": [
+                            {"id": "user-1", "username": "ken", "name": "Ken"},
+                            {"id": "user-2", "username": "sam", "name": "Sam"},
+                        ],
+                        "cards": [
+                            {
+                                "id": "card-1",
+                                "name": "API",
+                                "updatedAt": "2026-03-01T08:00:00Z",
+                                "stopwatch": {"total": 3600},
+                                "creatorUserId": "user-2",
+                            },
+                            {
+                                "id": "card-2",
+                                "name": "Docs",
+                                "updatedAt": "2026-03-01T10:00:00Z",
+                                "stopwatch": {"total": 1200},
+                                "creatorUserId": "user-2",
+                            },
+                        ],
+                        "cardMemberships": [
+                            {"cardId": "card-1", "userId": "user-1"},
+                            {"cardId": "card-2", "userId": "user-2"},
+                        ],
+                    },
+                },
+            ),
+        ]
+
+        total, daily, issues = get_time_sum(
+            "2026-03-01T00:00:00Z",
+            "2026-03-01T23:59:59Z",
+            username="ken",
+        )
+
+        self.assertEqual(total, 3600)
+        self.assertEqual(daily["2026-03-01"], 3600)
+        self.assertEqual(list(issues.keys()), ["Acme Product#Sprint · API"])
+
+    @override_settings(PLANKA_BASE_URL="https://planka.example", PLANKA_TOKEN="abc")
+    @patch("tracker.services._HTTP_SESSION.get")
+    def test_get_planka_users_collects_unique_board_users(self, mock_get):
+        mock_get.side_effect = [
+            MockResponse(
+                200,
+                {
+                    "items": [{"id": "project-1", "name": "Acme Product"}],
+                    "included": {
+                        "boards": [
+                            {"id": "board-1", "projectId": "project-1", "name": "Sprint"}
+                        ]
+                    },
+                },
+            ),
+            MockResponse(
+                200,
+                {
+                    "item": {"id": "board-1", "name": "Sprint"},
+                    "included": {
+                        "projects": [{"id": "project-1", "name": "Acme Product"}],
+                        "users": [
+                            {
+                                "id": "user-2",
+                                "username": "sam",
+                                "name": "Sam",
+                                "avatarUrl": "https://img/sam.png",
+                            },
+                            {"id": "user-1", "username": "ken", "name": "Ken"},
+                            {"id": "user-1", "username": "ken", "name": "Ken"},
+                        ],
+                        "cards": [],
+                        "cardMemberships": [],
+                    },
+                },
+            ),
+        ]
+
+        users = get_planka_users()
+
+        self.assertEqual(
+            users,
+            [
+                {"username": "ken", "full_name": "Ken", "avatar_url": ""},
+                {
+                    "username": "sam",
+                    "full_name": "Sam",
+                    "avatar_url": "https://img/sam.png",
+                },
+            ],
+        )
 
 
 class MockResponse:

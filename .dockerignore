@@ -1,0 +1,9 @@
+.git/
+.gitignore
+.env
+.ruff_cache/
+__pycache__/
+*.pyc
+*.pyo
+db.sqlite3
+staticfiles/

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Forgejo Time Tracker</title>
+    <title>Planka Time Tracker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
@@ -19,7 +19,7 @@
         <div class="header-icon"><i data-lucide="timer"></i></div>
         <div class="header-text">
             <div class="header-title">Time Tracker</div>
-            <div class="header-subtitle">Forgejo · Time Summary</div>
+            <div class="header-subtitle">Planka · Card Time Summary</div>
         </div>
         <div class="header-actions">
             <button class="icon-btn" id="themeToggle" type="button" title="Toggle theme"><i data-lucide="sun-moon"></i></button>
@@ -35,7 +35,7 @@
         <div class="field">
             <label class="field-label" for="userSelect"><i data-lucide="users"></i>User</label>
             <select class="field-input" id="userSelect">
-                <option value="">All users (self)</option>
+                <option value="">All visible members</option>
             </select>
         </div>
         <div class="field-row">
@@ -208,12 +208,12 @@
             </div>
             <div class="breakdown-switch">
                 <button class="breakdown-btn active" type="button" id="byDayBtn">By day</button>
-                <button class="breakdown-btn" type="button" id="byIssueBtn">By issue</button>
+                <button class="breakdown-btn" type="button" id="byIssueBtn">By card</button>
                 <button class="breakdown-btn" type="button" id="byProjectBtn">By project</button>
             </div>
             <div class="search-bar" id="searchBar">
                 <i data-lucide="search" class="search-icon"></i>
-                <input type="text" class="search-input" id="searchInput" placeholder="Filter issues or projects...">
+                <input type="text" class="search-input" id="searchInput" placeholder="Filter cards or projects...">
             </div>
             <div class="daily-breakdown" id="dailyBreakdown"></div>
             <div class="daily-breakdown hidden" id="issueBreakdown"></div>
@@ -221,7 +221,7 @@
         </div>
     </div>
 
-    <div class="footer">Forgejo Time Tracker · Press <kbd>?</kbd> for shortcuts</div>
+    <div class="footer">Planka Time Tracker · Press <kbd>?</kbd> for shortcuts</div>
 </div>
 
 <div class="modal-overlay hidden" id="shortcutModal">
